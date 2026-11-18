@@ -1,0 +1,31 @@
+services:
+  backend:
+    container_name: bicopilot-backend
+    # context 是项目根，因为要把 frontend/ 一起打进镜像。
+    # 这也是它和 SmartSupport 的区别：那边 context 只有 backend/，镜像里没有页面。
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # 宿主机 8001 → 容器 8000：
+    # 8000 留给 SmartSupport，两个项目一起跑不会抢端口。
+    ports:
+      - "8001:8000"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.deepseek.com}
+      - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
+      # Schema 检索的语义通道，默认关闭 —— 开了就要装 torch，镜像会大一大截。
+      #想体验语义召回：把 false 改成 true
+      - USE_EMBEDDING_RETRIEVAL=${USE_EMBEDDING_RETRIEVAL:-false}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-auto}
+      - EMBEDDING_WEIGHT=${EMBEDDING_WEIGHT:-0.5}
+    # 用 named volume 而不是 ./backend/data 目录挂载：
+    # 目录挂载会用宿主机（可能是空的）目录盖住镜像里的 /app/backend/data，
+    # 结果 Dockerfile 里 seed 出来的 app.db 直接消失、服务报「数据库不存在」。
+    # named volume 在首次创建时会继承镜像内的内容，既保住 app.db 又能持久化会话。
+    volumes:
+      - bicopilot-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  bicopilot-data:

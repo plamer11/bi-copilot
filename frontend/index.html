@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BI Copilot · 对话式数据分析</title>
+<style>
+  :root {
+    --bg: #0f1216; --panel: #171b21; --panel-2: #1e242c; --line: #2a313b;
+    --fg: #e6e9ef; --muted: #98a2b3; --accent: #4c8dff; --ok: #3fb950;
+    --warn: #d29922; --err: #f85149; --mono: ui-monospace, Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .sess { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .sess code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  button {
+    background: var(--panel-2); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .samples { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 4px 12px; font-size: 12px; color: var(--muted); cursor: pointer;
+  }
+  .chip:hover { color: var(--fg); border-color: var(--accent); }
+  .ask { display: flex; gap: 8px; margin-bottom: 16px; }
+  input[type=text] {
+    flex: 1; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 10px 12px; color: var(--fg); font-size: 14px;
+  }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px; margin-bottom: 12px;
+  }
+  .q { font-weight: 600; margin-bottom: 8px; }
+  .follow { color: var(--accent); font-size: 12px; font-weight: normal; margin-left: 8px; }
+  .trace { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .step {
+    font-size: 11px; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 2px 8px; color: var(--muted); font-family: var(--mono);
+  }
+  .step b { color: var(--fg); font-weight: 600; }
+  pre {
+    background: #0b0e12; border: 1px solid var(--line); border-radius: 6px;
+    padding: 10px; overflow: auto; font-family: var(--mono); font-size: 12px; margin: 8px 0;
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 8px; }
+  th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; }
+  th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
+  .answer { white-space: pre-wrap; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid; }
+  .b-safe { color: var(--ok); border-color: var(--ok); }
+  .b-app { color: var(--warn); border-color: var(--warn); }
+  .b-block { color: var(--err); border-color: var(--err); }
+  .approval { border-color: var(--warn); }
+  .approval h3 { margin: 0 0 8px; font-size: 14px; color: var(--warn); }
+  textarea {
+    width: 100%; background: #0b0e12; color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px; font-family: var(--mono); font-size: 12px; min-height: 90px;
+  }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  .err { color: var(--err); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>BI Copilot</h1>
+    <span class="sub">中文提问 → 自动写 SQL → 只读执行 → 中文结论</span>
+    <div class="sess">
+      <code id="sid"></code>
+      <button id="newSess">新会话</button>
+    </div>
+  </header>
+
+  <div class="samples" id="samples"></div>
+
+  <div class="ask">
+    <input type="text" id="q" placeholder="例如：上个月各品类销量分别是多少？" />
+    <button class="primary" id="send">提问</button>
+  </div>
+
+  <div id="log"></div>
+  <div class="empty" id="empty">还没有提问。上面点一个示例，或者直接问一句。</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const log = $('log');
+const emptyHint = $('empty');
+
+
+
+let sid = localStorage.getItem('bicopilot_sid');
+if (!sid) { sid = 's-' + Math.random().toString(16).slice(2, 10); localStorage.setItem('bicopilot_sid', sid); }
+$('sid').textContent = sid;
+
+$('newSess').onclick = async () => {
+  try { await fetch('/api/history/' + sid, { method: 'DELETE' }); } catch (e) {}
+  sid = 's-' + Math.random().toString(16).slice(2, 10);
+  localStorage.setItem('bicopilot_sid', sid);
+  $('sid').textContent = sid;
+  log.innerHTML = '';
+  emptyHint.style.display = '';
+  loadHistory();
+};
+
+const SAMPLES = [
+  '上个月销量最高的 5 个 SKU',
+  '各品类 4 月的销售额',
+  '退货率最高的 3 个 SKU 是哪些',
+  '哪些商品的广告 ACOS 超过 50%',
+  '哪些商品快断货了，可售天数低于 15 天',
+  'Kitchen 品类的销量怎么样',
+];
+$('samples').innerHTML = SAMPLES.map((s) => `<span class="chip">${s}</span>`).join('');
+$('samples').onclick = (e) => {
+  if (e.target.classList.contains('chip')) { $('q').value = e.target.textContent; $('send').click(); }
+};
+
+function el(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html.trim();
+  return d.firstElementChild;
+}
+
+function badge(level) {
+  if (level === 'BLOCKED') return '<span class="badge b-block">已拦截</span>';
+  if (level === 'NEEDS_APPROVAL') return '<span class="badge b-app">待确认</span>';
+  if (level === 'SAFE') return '<span class="badge b-safe">已放行</span>';
+  return '';
+}
+
+function tableHtml(columns, rows) {
+  if (!columns || !columns.length) return '';
+  const head = columns.map((c) => `<th>${c}</th>`).join('');
+  const body = (rows || []).slice(0, 50)
+    .map((r) => '<tr>' + r.map((v) => `<td>${v === null ? 'NULL' : v}</td>`).join('') + '</tr>').join('');
+  const more = (rows || []).length > 50 ? `<p class="meta">仅显示前 50 行，共 ${rows.length} 行</p>` : '';
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${more}`;
+}
+
+
+
+async function stream(url, body, onEvent) {
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const raw = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let name = 'message', data = '';
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('event: ')) name = line.slice(7).trim();
+        else if (line.startsWith('data: ')) data += line.slice(6);
+      }
+      if (data) { try { onEvent(name, JSON.parse(data)); } catch (e) { console.warn(e); } }
+    }
+  }
+}
+
+let busy = false;
+async function ask(question) {
+  if (busy || !question.trim()) return;
+  busy = true; $('send').disabled = true;
+  emptyHint.style.display = 'none';
+
+  const card = el(`<div class="card"><div class="q"></div><div class="trace"></div>
+      <div class="meta">执行中…</div></div>`);
+  card.querySelector('.q').textContent = question;
+  log.prepend(card);
+  const traceBox = card.querySelector('.trace');
+  const meta = card.querySelector('.meta');
+
+  const finish = () => { busy = false; $('send').disabled = false; };
+  const step = (node, detail) => {
+    traceBox.appendChild(el(`<span class="step"><b>${node}</b> ${detail || ''}</span>`));
+  };
+
+  try {
+    await stream('/api/ask', { question, session_id: sid }, (name, d) => {
+      if (name === 'trace') { step(d.node, d.detail); return; }
+      if (name === 'sql') {
+        const pre = el(`<pre></pre>`);
+        pre.textContent = d.sql || '';
+        card.insertBefore(pre, meta);
+        card.insertBefore(el(`<div class="meta">${badge(d.level)}</div>`), pre);
+        return;
+      }
+      if (name === 'approval_required') {
+        meta.remove();
+        showApproval(card, d);
+        return;
+      }
+      if (name === 'error') {
+        meta.remove();
+        card.appendChild(el(`<p class="meta err">${d.message}</p>`));
+        return;
+      }
+      if (name === 'final') {
+        meta.remove();
+        if (d.is_followup && d.standalone_question) {
+          card.querySelector('.q').appendChild(
+            el(`<span class="follow">理解为：${d.standalone_question}</span>`));
+        }
+        card.appendChild(el(`<div class="answer">${d.answer || '(无结论)'}</div>`));
+        if (d.rows && d.rows.length) card.appendChild(el(tableHtml(d.columns, d.rows)));
+        const extra = [];
+        if (d.row_count) extra.push(`共 ${d.row_count} 行`);
+        if (d.chart_type && d.chart_type !== 'table') extra.push(`建议图表：${d.chart_type}`);
+        if (d.attempts && d.attempts.length > 1) extra.push(`自愈 ${d.attempts.length - 1} 轮后成功`);
+        if (extra.length) card.appendChild(el(`<p class="meta">${extra.join(' · ')}</p>`));
+      }
+    });
+  } catch (e) {
+    meta.remove();
+    card.appendChild(el(`<p class="meta err">请求失败：${e.message}（后端起了吗？）</p>`));
+  }
+  finish();
+  loadHistory();
+}
+
+function showApproval(card, d) {
+  const box = el(`<div class="card approval">
+      <h3>这条查询风险较高，需要你确认</h3>
+      <div class="meta">${(d.reasons || []).join('；')}</div>
+      <pre></pre>
+      <textarea spellcheck="false"></textarea>
+      <div class="row">
+        <button class="primary" data-a="approve">通过并执行</button>
+        <button data-a="edit">改写后执行</button>
+        <button data-a="reject">取消</button>
+      </div>
+      <div class="meta out"></div>
+    </div>`);
+  box.querySelector('pre').textContent = d.sql || '';
+  box.querySelector('textarea').value = d.sql || '';
+  box.onclick = async (e) => {
+    const action = e.target.getAttribute && e.target.getAttribute('data-a');
+    if (!action) return;
+    const out = box.querySelector('.out');
+    out.textContent = '提交中…';
+    try {
+      const resp = await fetch('/api/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sid,
+          action,
+          sql: action === 'edit' ? box.querySelector('textarea').value : undefined,
+        }),
+      });
+      const r = await resp.json();
+      box.querySelector('.row').remove();
+      box.querySelector('textarea').remove();
+      box.querySelector('h3').textContent = '已处理';
+      out.textContent = r.answer || (r.ok ? '执行完成' : '已取消');
+      if (r.rows && r.rows.length) box.appendChild(el(tableHtml(r.columns, r.rows)));
+    } catch (err) {
+      out.textContent = '提交失败：' + err.message;
+    }
+  };
+  card.appendChild(box);
+}
+
+async function loadHistory() {
+  try {
+    const r = await fetch('/api/history/' + sid + '?limit=5').then((x) => x.json());
+    $('sid').textContent = `${sid}（已问 ${r.count} 轮）`;
+  } catch (e) {  }
+}
+
+$('send').onclick = () => { const v = $('q').value; $('q').value = ''; ask(v); };
+$('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('send').click(); });
+loadHistory();
+</script>
+</body>
+</html>

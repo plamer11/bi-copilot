@@ -1,0 +1,29 @@
+# Web 服务
+fastapi>=0.115
+uvicorn>=0.30
+
+# Agent 编排
+langgraph>=1.2
+langgraph-checkpoint-sqlite>=3.1   # AsyncSqliteSaver，HITL 挂起恢复要用
+aiosqlite>=0.20
+
+# LLM
+langchain-core>=1.5
+langchain-openai>=1.5
+pydantic>=2.9
+python-dotenv>=1.0
+
+# SQL 解析与安全检查
+sqlglot>=30.0
+
+# 中文分词（Schema 检索的关键词通道）
+jieba>=0.42
+
+# 可选：Schema 检索的 embedding 通道（默认关闭，不装也能跑）
+# 只有设了 USE_EMBEDDING_RETRIEVAL=true 且 provider=local 才需要，
+# 装它会连带拉 torch（约 +2GB），所以刻意不写进主依赖。
+# sentence-transformers>=2.7
+
+# 测试
+pytest>=8.0
+httpx>=0.27

@@ -1,0 +1,15 @@
+{
+  "_comment": "CI 回归基线。改 prompt / 检索 / 守卫之后，如果评测结果确实变好了，用 `python -m app.eval.ci_gate --update-baseline` 更新这里，并把变化写进 PR 描述。不要为了让 CI 变绿而随手改它。",
+  "source": "人工标注集 40 条（easy 12 / medium 18 / hard 10）",
+  "model": "deepseek-chat",
+  "recorded_at": "2026-10-08",
+  "accuracy": 0.875,
+  "schema_recall": 0.822,
+  "by_difficulty": {
+    "easy": 1.0,
+    "medium": 1.0,
+    "hard": 0.5
+  },
+  "failed_ids": [31, 32, 36, 37, 40],
+  "note": "hard 档 5 条失败集中在多表交叉（既断货又在投广告、做没做促销的销量差）。它们是已知短板，不是回归 —— 所以基线里记的是 failed_ids，门禁只拦'原来能过现在过不了'的用例。"
+}

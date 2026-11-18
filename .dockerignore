@@ -1,0 +1,26 @@
+# 构建上下文瘦身：这些文件进镜像只会白白增大体积，且 .env 属于密钥不能进。
+# 注意 frontend/ 不能排除 —— 服务会把整个页面托管出来。
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+.env
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+tests/
+docs/
+# 运行时产物：容器里会重建，带进去可能是陈旧的在线数据。
+#   app.db        → Dockerfile 里用 python -m app.db.seed 重新生成
+#   history.db    → 多轮会话历史，运行时生成
+#   checkpoints.db→ LangGraph checkpointer，运行时生成
+#   audit.log     → SQL 守卫审计日志，运行时生成
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+backend/data/*.log
